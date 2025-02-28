@@ -1,51 +1,93 @@
 using UnityEngine;
-
-public class PlayerMovement : MonoBehaviour
+using System.Collections;
+public class PlayerController : MonoBehaviour
 {
     public float moveSpeed = 5f;
-    public float jumpForce = 5f;
-    public Transform cameraTransform;  // Assign Main Camera’s transform
+    public float jumpForce = 7f;
+    public float dashSpeed = 10f;
+    public float dashDuration = 0.2f;
+
     private Rigidbody rb;
     private bool isGrounded;
-     void Start()
+    private int jumpCount = 0;  
+    private bool isDashing = false;
+
+    private Vector3 moveDirection;
+    private float dashTime;
+
+    void Start()
     {
         rb = GetComponent<Rigidbody>();
     }
 
     void Update()
     {
-        Move();
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        if (!isDashing)
         {
-            Jump();
+            HandleMovement();
+            HandleJump();
         }
+
+        HandleDash();
     }
-    void Move()
+
+    void HandleMovement()
     {
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
 
-        Vector3 forward = cameraTransform.forward;
-        Vector3 right = cameraTransform.right;
-        forward.y = 0;
-        right.y = 0;
-        forward.Normalize();
-        right.Normalize();
+        // Move relative to camera direction
+        Vector3 moveInput = new Vector3(horizontal, 0, vertical);
+        moveDirection = Camera.main.transform.TransformDirection(moveInput);
+        moveDirection.y = 0;
 
-        Vector3 direction = forward * vertical + right * horizontal;
-        rb.MovePosition(rb.position + direction * moveSpeed * Time.deltaTime);
+        transform.position += moveDirection * moveSpeed * Time.deltaTime;
     }
-    void Jump()
+
+    void HandleJump()
     {
-        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
-        isGrounded = false;
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            if (isGrounded || jumpCount <= 1)  
+            {
+                rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpForce, rb.linearVelocity.z);
+                isGrounded = false;
+                jumpCount++;
+            }
+        }
+    }
+
+    void HandleDash()
+    {
+        if (Input.GetKeyDown(KeyCode.LeftShift) && !isDashing)
+        {
+            StartCoroutine(Dash());
+        }
+    }
+
+    IEnumerator Dash()
+    {
+        isDashing = true;
+        dashTime = dashDuration;
+        Vector3 dashDirection = moveDirection.normalized * dashSpeed;
+
+        while (dashTime > 0)
+        {
+            rb.linearVelocity = dashDirection;
+            dashTime -= Time.deltaTime;
+            yield return null;
+        }
+
+        isDashing = false;
+        rb.linearVelocity = Vector3.zero; 
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (collision.gameObject.CompareTag("Ground"))
+        if (collision.gameObject.CompareTag("Ground"))  
         {
             isGrounded = true;
+            jumpCount = 0;
         }
     }
 }
